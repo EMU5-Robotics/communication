@@ -1,3 +1,4 @@
+use crate::packet::ToClient;
 use crate::SimpleLog;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::SystemTime;
@@ -16,6 +17,7 @@ impl Client {
     }
 
     fn receive_data(&mut self) {
+        let _: ToClient = bincode::deserialize_from(&self.stream).unwrap();
         todo!()
     }
 }

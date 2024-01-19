@@ -1,6 +1,6 @@
 use log::{Log, Metadata, Record};
 use packet::{FromMediator, ToMediator};
-use std::{io::Write, net::*, sync::mpsc};
+use std::{net::*, sync::mpsc};
 
 pub mod client;
 pub mod mediator;
@@ -31,11 +31,13 @@ impl Logger {
 
     // sends logs if needed to stream and update log index
     fn send_logs(logs: &[SimpleLog], stream: &mut Option<TcpStream>, last_idx: &mut usize) {
-        if let Some(s) = stream {
-            if s.write(SimpleLog::to_be_bytes(&logs[(*last_idx + 1)..]))
-                .is_ok()
-            {
-                *last_idx = logs.len() - 1;
+        if let Some(s) = stream.as_mut() {
+            let unsent = &logs[(*last_idx + 1)..];
+            for log in unsent {
+                match bincode::serialize_into(&mut *s, log) {
+                    Ok(_) => *last_idx += 1,
+                    Err(_) => break,
+                }
             }
         }
     }
