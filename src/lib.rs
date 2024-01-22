@@ -34,8 +34,13 @@ impl Logger {
     pub fn init() -> Result<Mediator, log::SetLoggerError> {
         let (thread_tx, main_rx) = mpsc::channel();
         let (main_tx, thread_rx) = mpsc::channel();
+
+        // note that we don't get the thread handle to join later since
+        // the listener thread can stall due to the static global logger
+        // having a Sender<FromMediator> which can prevent the listener
+        // loop from exiting
         std::thread::spawn(move || {
-            if let Err(e) = Self::processing_thread(&thread_tx, &thread_rx) {
+            if let Err(e) = Self::listener_thread(&thread_tx, &thread_rx) {
                 eprintln!("{e}");
             }
         });
@@ -88,7 +93,7 @@ impl Logger {
             }
         }
     }
-    fn processing_thread(
+    fn listener_thread(
         tx: &mpsc::Sender<ToMediator>,
         rx: &mpsc::Receiver<FromMediator>,
     ) -> Result<(), Error> {
@@ -186,9 +191,9 @@ mod tests {
 
     #[test]
     fn logging() {
-        let mut mediator = Logger::init();
+        let mut mediator = Logger::init().unwrap();
 
-        std::thread::spawn(|| {
+        let client = std::thread::spawn(|| {
             // to make sure that the TcpListener is bound to port
             std::thread::sleep(std::time::Duration::from_millis(20));
 
@@ -196,17 +201,22 @@ mod tests {
             let mut client = Client::new("127.0.0.1:8733").unwrap();
 
             // give time for robot to respond
-            std::thread::sleep(std::time::Duration::from_millis(20));
+            // also see https://github.com/EMU5-Robotics/communication/issues/3
+            std::thread::sleep(std::time::Duration::from_millis(50));
 
-            client.receive_data().unwrap();
+            let pkts = client.receive_data().unwrap();
 
-            assert_eq!(client.logs.len(), 5);
+            assert_eq!(pkts.len(), 5);
 
             client.send_request(&ToRobot::Ping).unwrap();
 
             // give ping chain time to complete
             std::thread::sleep(std::time::Duration::from_millis(50));
-            client.receive_data().unwrap();
+
+            // client should of received only Pong packet
+            let pkts = client.receive_data().unwrap();
+            assert_eq!(pkts.len(), 1);
+            assert_eq!(pkts[0], ToClient::Pong);
         });
 
         // check logging
@@ -229,5 +239,7 @@ mod tests {
             // fancy busy loop simulation
             std::thread::sleep(std::time::Duration::from_millis(3));
         }
+
+        client.join().unwrap();
     }
 }

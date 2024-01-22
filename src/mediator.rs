@@ -1,6 +1,4 @@
-use derive_new::new;
-
-use std::sync::mpsc::{self, SendError};
+use std::sync::mpsc::{Receiver, SendError, Sender};
 
 use crate::packet::{self, FromMediator, ToMediator};
 
@@ -14,13 +12,15 @@ pub enum Error {
     Send(#[from] SendError<FromMediator>),
 }
 
-#[derive(new)]
 pub struct Mediator {
-    send: mpsc::Sender<FromMediator>,
-    recv: mpsc::Receiver<ToMediator>,
+    send: Sender<FromMediator>,
+    recv: Receiver<ToMediator>,
 }
 
 impl Mediator {
+    pub(crate) fn new(send: Sender<FromMediator>, recv: Receiver<ToMediator>) -> Self {
+        Self { send, recv }
+    }
     pub fn poll_events(&mut self) -> Result<Vec<ToMediator>, Error> {
         self.send_event(FromMediator::PollEvents)?;
 

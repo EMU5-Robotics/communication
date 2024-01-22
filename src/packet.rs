@@ -82,7 +82,7 @@ impl From<&Record<'_>> for FromMediator {
     }
 }
 
-pub fn send(stream: &mut std::net::TcpStream, pkt: &impl Serialize) -> Result<(), Error> {
+pub(crate) fn send(stream: &mut std::net::TcpStream, pkt: &impl Serialize) -> Result<(), Error> {
     let data = bincode::serialize(pkt)?;
     let len = u32::try_from(data.len())
         .map_err(|_| Error::Other(String::from("Packet length greater then 2^32-1 bytes?!?")))?;
@@ -91,7 +91,7 @@ pub fn send(stream: &mut std::net::TcpStream, pkt: &impl Serialize) -> Result<()
     Ok(())
 }
 
-pub fn recieve_multiple<
+pub(crate) fn recieve_multiple<
     T: DeserializeOwned,
     E: std::error::Error + From<Error>,
     F: FnMut(&mut TcpStream, T) -> Result<(), E>,
