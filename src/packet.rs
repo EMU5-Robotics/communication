@@ -33,10 +33,10 @@ enum LevelDef {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct SimpleLog {
     #[serde(with = "LevelDef")]
-    level: Level,
-    msg: String,
-    target: String,
-    timestamp: SystemTime,
+    pub level: Level,
+    pub msg: String,
+    pub target: String,
+    pub timestamp: SystemTime,
 }
 
 impl From<&Record<'_>> for SimpleLog {

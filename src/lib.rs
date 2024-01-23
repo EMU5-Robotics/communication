@@ -97,7 +97,7 @@ impl Logger {
         tx: &mpsc::Sender<ToMediator>,
         rx: &mpsc::Receiver<FromMediator>,
     ) -> Result<(), Error> {
-        let listener = TcpListener::bind("127.0.0.1:8733")?;
+        let listener = TcpListener::bind("0.0.0.0:8733")?;
         listener.set_nonblocking(true)?;
 
         // it should be common for the client to start after the
