@@ -1,5 +1,6 @@
 use log::{Log, Metadata, Record};
 use packet::{FromMediator, ToMediator, ToRobot};
+use simple_logger::SimpleLogger;
 use std::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, RecvError, SendError},
@@ -28,6 +29,7 @@ enum Error {
 
 pub struct Logger {
     sender: mpsc::Sender<FromMediator>,
+    local_logger: SimpleLogger,
 }
 
 impl Logger {
@@ -45,10 +47,16 @@ impl Logger {
             }
         });
 
+        let local_logger = SimpleLogger::new()
+            .env()
+            .with_level(log::LevelFilter::Debug);
+        let filter = local_logger.max_level();
+
         log::set_boxed_logger(Box::new(Self {
             sender: main_tx.clone(),
+            local_logger,
         }))
-        .map(|()| log::set_max_level(log::LevelFilter::Trace))?;
+        .map(|()| log::set_max_level(filter))?;
 
         Ok(Mediator::new(main_tx, main_rx))
     }
@@ -79,11 +87,6 @@ impl Logger {
 
         loop {
             let from_mediator = rx.recv()?;
-
-            // write logs locally
-            if let FromMediator::Log(_) = &from_mediator {
-                //println!("{log:?}");
-            }
 
             packet_buffer.push_back(from_mediator);
 
@@ -179,8 +182,11 @@ impl Log for Logger {
     }
     fn log(&self, record: &Record) {
         let _ = self.sender.send(record.into());
+        self.local_logger.log(record);
     }
-    fn flush(&self) {}
+    fn flush(&self) {
+        self.local_logger.flush()
+    }
 }
 
 #[cfg(test)]
@@ -220,7 +226,8 @@ mod tests {
         });
 
         // check logging
-        log::trace!("These");
+        log::trace!("This will get filtered out!");
+        log::info!("These");
         log::debug!("are some");
         log::info!("example");
         log::warn!("logs");
