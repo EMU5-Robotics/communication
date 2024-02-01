@@ -1,6 +1,5 @@
 use log::{Log, Metadata, Record};
 use packet::{FromMediator, ToMediator, ToRobot};
-use simple_logger::SimpleLogger;
 use std::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, RecvError, SendError},
@@ -29,7 +28,7 @@ enum Error {
 
 pub struct Logger {
     sender: mpsc::Sender<FromMediator>,
-    local_logger: SimpleLogger,
+    local_logger: env_logger::Logger,
 }
 
 impl Logger {
@@ -47,10 +46,14 @@ impl Logger {
             }
         });
 
-        let local_logger = SimpleLogger::new()
-            .env()
-            .with_level(log::LevelFilter::Debug);
-        let filter = local_logger.max_level();
+        // set default log level
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "debug,client::coprocessor::serial=info");
+        }
+
+        let local_logger = env_logger::Logger::from_default_env();
+
+        let filter = local_logger.filter();
 
         log::set_boxed_logger(Box::new(Self {
             sender: main_tx.clone(),
@@ -226,7 +229,6 @@ mod tests {
         });
 
         // check logging
-        log::trace!("This will get filtered out!");
         log::info!("These");
         log::debug!("are some");
         log::info!("example");
