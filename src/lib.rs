@@ -185,7 +185,7 @@ impl Log for Logger {
         self.local_logger.log(record);
     }
     fn flush(&self) {
-        self.local_logger.flush()
+        self.local_logger.flush();
     }
 }
 
