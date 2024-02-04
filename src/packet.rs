@@ -8,6 +8,8 @@ use std::{
 use log::{Level, Record};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use crate::path::Action;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("bincode serialise/deserialise error")]
@@ -54,24 +56,28 @@ impl From<&Record<'_>> for SimpleLog {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum ToClient {
     Log(SimpleLog),
+    Path(Vec<Action>),
     Pong,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub enum ToRobot {
     RequestLogs,
+    Path(Vec<Action>),
     Ping,
 }
 
 // THREAD PACKETS
 #[derive(Debug)]
 pub enum ToMediator {
+    Path(Vec<Action>),
     Ping,
 }
 
 #[derive(Debug)]
 pub enum FromMediator {
     Log(SimpleLog),
+    Path(Vec<Action>),
     Pong,
     PollEvents,
 }

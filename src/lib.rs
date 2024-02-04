@@ -8,6 +8,7 @@ use std::{
 pub mod client;
 pub mod mediator;
 pub mod packet;
+pub mod path;
 
 pub use mediator::Mediator;
 pub use packet::{SimpleLog, ToClient};
@@ -151,12 +152,9 @@ impl Logger {
                 logs.push(ToClient::Log(log));
                 Self::send_logs(logs, stream, last_log)?;
             }
-            FromMediator::Pong => {
-                packet::send(stream, &ToClient::Pong)?;
-            }
-            FromMediator::PollEvents => {
-                Self::poll_tcp_events(tx, stream, logs, last_log)?;
-            }
+            FromMediator::Pong => packet::send(stream, &ToClient::Pong)?,
+            FromMediator::Path(p) => packet::send(stream, &ToClient::Path(p))?,
+            FromMediator::PollEvents => Self::poll_tcp_events(tx, stream, logs, last_log)?,
         }
         Ok(())
     }
@@ -169,6 +167,7 @@ impl Logger {
         let mut pkt_fn = |stream: &mut _, pkt| -> Result<(), Error> {
             match pkt {
                 ToRobot::Ping => tx.send(ToMediator::Ping)?,
+                ToRobot::Path(p) => tx.send(ToMediator::Path(p))?,
                 ToRobot::RequestLogs => {
                     Self::send_logs(logs, stream, last_log)?;
                 }
