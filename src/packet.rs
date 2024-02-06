@@ -12,11 +12,11 @@ use crate::path::Action;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("bincode serialise/deserialise error")]
+    #[error("bincode serialise/deserialise error:\n{0}")]
     Bincode(#[from] bincode::Error),
-    #[error("read/write error")]
+    #[error("read/write error:\n{0}")]
     Io(#[from] std::io::Error),
-    #[error("unknown error")]
+    #[error("unknown error:\n{0}")]
     Other(String),
 }
 
@@ -53,18 +53,22 @@ impl From<&Record<'_>> for SimpleLog {
 }
 
 // TCP PACKETS
+// #[repr(u8)] + discriminants are to mitigate version compatability problems
+// although code should ideally always run with the same version
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[repr(u8)]
 pub enum ToClient {
-    Log(SimpleLog),
-    Path(Vec<Action>),
-    Pong,
+    Log(SimpleLog) = 0,
+    Pong = 1,
+    Path(Vec<Action>) = 2,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[repr(u8)]
 pub enum ToRobot {
-    RequestLogs,
-    Path(Vec<Action>),
-    Ping,
+    RequestLogs = 0,
+    Ping = 1,
+    Path(Vec<Action>) = 2,
 }
 
 // THREAD PACKETS

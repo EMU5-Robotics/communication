@@ -4,11 +4,11 @@ use crate::packet::{self, FromMediator, ToMediator};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("IO error")]
+    #[error("IO error:\n{0}")]
     Io(#[from] std::io::Error),
-    #[error("packet error")]
+    #[error("packet error:\n{0}")]
     Packet(#[from] packet::Error),
-    #[error("send error")]
+    #[error("send error:\n{0}")]
     Send(#[from] SendError<FromMediator>),
 }
 

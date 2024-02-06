@@ -7,11 +7,11 @@ use std::time::Duration;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("io error")]
+    #[error("IO error:\n{0}")]
     Io(#[from] std::io::Error),
-    #[error("packet error")]
+    #[error("packet error:\n{0}")]
     Packet(#[from] packet::Error),
-    #[error("invalid ip")]
+    #[error("invalid ip:\n{0}")]
     AddrParse(#[from] AddrParseError),
 }
 

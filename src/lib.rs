@@ -15,15 +15,15 @@ pub use packet::{SimpleLog, ToClient};
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
-    #[error("io error")]
+    #[error("IO error:\n{0}")]
     Io(#[from] std::io::Error),
-    #[error("error with packet reading/writing")]
+    #[error("error with packet reading/writing:\n{0}")]
     Packet(#[from] packet::Error),
-    #[error("error reading from main thread")]
+    #[error("error reading from main thread:\n{0}")]
     Recv(#[from] RecvError),
-    #[error("error sending to main thread")]
+    #[error("error sending to main thread:\n{0}")]
     Send(#[from] SendError<ToMediator>),
-    #[error("mediator error")]
+    #[error("mediator error:\n{0}")]
     Mediator(#[from] mediator::Error),
 }
 
@@ -43,7 +43,8 @@ impl Logger {
         // loop from exiting
         std::thread::spawn(move || {
             if let Err(e) = Self::listener_thread(&thread_tx, &thread_rx) {
-                eprintln!("{e}");
+                // this will log using only env_logger
+                log::error!("Listener thread errored with:\n{e}\nCommunication with clients is no longer possible. Is another instance running?");
             }
         });
 
@@ -129,15 +130,17 @@ impl Logger {
                 Err(_) => {
                     if was_connected {
                         was_connected = false;
-                        eprintln!("Client disconnected since last packet.");
+                        log::warn!("Client disconnected since last packet.");
                     }
                 }
                 _ => {}
             }
         }
 
-        eprintln!("WARNING: processing thread has exited. The application can no longer communicate with clients.");
-        eprintln!("This message should be unreachable as the sender should never be dropped.");
+        log::error!(
+            "listener thread has exited. The application can no longer communicate with clients.\n\
+             This message should be unreachable as the sender should never be dropped."
+        );
         Ok(())
     }
     fn process_packet(
@@ -242,6 +245,7 @@ mod tests {
             for event in events {
                 match event {
                     ToMediator::Ping => mediator.send_event(FromMediator::Pong).unwrap(),
+                    _ => {}
                 }
             }
             // fancy busy loop simulation
