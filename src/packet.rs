@@ -8,7 +8,7 @@ use std::{
 use log::{Level, Record};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::path::Action;
+use crate::{path::Action, plot};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -61,6 +61,7 @@ pub enum ToClient {
     Log(SimpleLog) = 0,
     Pong = 1,
     Path(Vec<Action>) = 2,
+    PointBuffer((String, plot::Buffer)) = 3,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -84,6 +85,7 @@ pub enum FromMediator {
     Path(Vec<Action>),
     Pong,
     PollEvents,
+    Point((String, plot::Point)),
 }
 
 impl From<&Record<'_>> for FromMediator {
