@@ -1,6 +1,6 @@
+use crossbeam_channel::{bounded, RecvError, SendError, Sender};
 use log::{Log, Metadata, Record};
 use packet::{FromMediator, ToMediator};
-use std::sync::mpsc::{self, RecvError, SendError};
 
 pub mod client;
 pub mod listener;
@@ -12,6 +12,8 @@ pub mod plot;
 use listener::Listener;
 pub use mediator::Mediator;
 pub use packet::{SimpleLog, ToClient};
+
+const MPSC_BUFFER_SIZE: usize = 10_000;
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
@@ -29,14 +31,14 @@ enum Error {
 
 // also handles plotting
 pub struct Logger {
-    sender: mpsc::Sender<FromMediator>,
+    sender: Sender<FromMediator>,
     local_logger: env_logger::Logger,
 }
 
 impl Logger {
     pub fn init() -> Result<Mediator, log::SetLoggerError> {
-        let (thread_tx, main_rx) = mpsc::channel();
-        let (main_tx, thread_rx) = mpsc::channel();
+        let (thread_tx, main_rx) = bounded(MPSC_BUFFER_SIZE);
+        let (main_tx, thread_rx) = bounded(MPSC_BUFFER_SIZE);
 
         Listener::spawn(thread_tx, thread_rx);
 
@@ -68,7 +70,7 @@ impl Log for Logger {
         true
     }
     fn log(&self, record: &Record) {
-        let _ = self.sender.send(record.into());
+        let _ = self.sender.try_send(record.into());
         self.local_logger.log(record);
     }
     fn flush(&self) {
@@ -101,7 +103,7 @@ mod tests {
 
             let pkts = client.receive_data().unwrap();
 
-            assert_eq!(pkts.len(), 5);
+            assert_eq!(pkts.len(), 6); //extra log for "Client connected"
 
             client.send_request(&ToRobot::Ping).unwrap();
 
@@ -148,7 +150,7 @@ mod tests {
 
             let pkts = client.receive_data().unwrap();
 
-            assert_eq!(pkts.len(), 4); // including disconnect log
+            assert_eq!(pkts.len(), 5); // including disconnect and connect log
         });
 
         std::thread::sleep(std::time::Duration::from_millis(10));

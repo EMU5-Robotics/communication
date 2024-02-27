@@ -3,15 +3,15 @@ use crate::{
     plot::PlotManager,
     Error,
 };
+use crossbeam_channel::{Receiver, Sender};
 use std::{
     collections::VecDeque,
     net::{TcpListener, TcpStream},
-    sync::mpsc::{self, Receiver, Sender},
 };
 
 pub(crate) struct Listener {
-    tx: mpsc::Sender<ToMediator>,
-    rx: mpsc::Receiver<FromMediator>,
+    tx: Sender<ToMediator>,
+    rx: Receiver<FromMediator>,
     was_connected: bool,
     tcp: TcpListener,
     logs: Vec<ToClient>,
@@ -56,12 +56,11 @@ impl Listener {
         loop {
             match s.read_from_mediator() {
                 Err(Error::Recv(_) | Error::Send(_)) => break,
-                Err(_) => {
-                    if s.was_connected {
-                        s.was_connected = false;
-                        log::warn!("Client disconnected since last packet.");
-                    }
+                Err(_) if s.was_connected => {
+                    s.was_connected = false;
+                    log::warn!("Client disconnected since last packet.");
                 }
+                Ok(()) if !s.was_connected => {}
                 _ => {}
             }
         }
@@ -76,12 +75,16 @@ impl Listener {
         let mut stream = self.tcp.accept()?.0;
         stream.set_nonblocking(true)?;
 
+        if !self.was_connected {
+            log::info!("Client connected.");
+        }
+        self.was_connected = true;
+
         loop {
             let from_mediator = self.rx.recv()?;
 
             self.packet_buffer.push_back(from_mediator);
 
-            self.was_connected = true;
             while let Some(pkt) = self.packet_buffer.pop_front() {
                 self.process_packet(&mut stream, pkt)?;
             }

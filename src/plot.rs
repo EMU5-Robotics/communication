@@ -1,10 +1,10 @@
 use crate::packet::FromMediator;
+use crossbeam_channel::Sender;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-pub static mut PLOTTER: Option<mpsc::Sender<FromMediator>> = None;
+pub static mut PLOTTER: Option<Sender<FromMediator>> = None;
 
 const BUFFER_SIZE: usize = 50;
 const BUFFER_TIMEOUT: Duration = Duration::from_millis(100);
@@ -51,11 +51,10 @@ impl Plot {
         }
     }
     pub fn add_point(&mut self, point: Point) {
-        let dur = self.start.elapsed();
         match (&mut self.point_buffer, point) {
-            (Buffer::Scalar(buf), Point::Scalar(p)) => buf.push((dur, p)),
-            (Buffer::Vec2(buf), Point::Vec2(p)) => buf.push((dur, p)),
-            (Buffer::Vec3(buf), Point::Vec3(p)) => buf.push((dur, p)),
+            (Buffer::Scalar(buf), Point::Scalar(p)) => buf.push((p.0.duration_since(self.start), p.1)),
+            (Buffer::Vec2(buf), Point::Vec2(p)) =>buf.push((p.0.duration_since(self.start), p.1)),
+            (Buffer::Vec3(buf), Point::Vec3(p)) => buf.push((p.0.duration_since(self.start), p.1)),
             _ => log::warn!("plot {} received point {point:?} of wrong type. Is there more then one plot with the same name?", self.name),
         }
     }
@@ -97,9 +96,9 @@ impl Buffer {
 impl From<Point> for Buffer {
     fn from(point: Point) -> Self {
         match point {
-            Point::Scalar(s) => Self::Scalar(vec![(Duration::ZERO, s)]),
-            Point::Vec2(s) => Self::Vec2(vec![(Duration::ZERO, s)]),
-            Point::Vec3(s) => Self::Vec3(vec![(Duration::ZERO, s)]),
+            Point::Scalar(s) => Self::Scalar(vec![(Duration::ZERO, s.1)]),
+            Point::Vec2(s) => Self::Vec2(vec![(Duration::ZERO, s.1)]),
+            Point::Vec3(s) => Self::Vec3(vec![(Duration::ZERO, s.1)]),
         }
     }
 }
@@ -109,17 +108,19 @@ macro_rules! plot {
     ($plt_name:expr, $point:expr) => {
         #[allow(unsafe_code)]
         unsafe {
-            if let Some(sender) = &$crate::plot::PLOTTER {
+            if let Some(sender) = &*std::ptr::addr_of!($crate::plot::PLOTTER) {
                 #[allow(unused_imports)]
                 use $crate::plot::{A, B, C};
-                if let Err(e) = sender.send($crate::packet::FromMediator::Point((
+                match sender.try_send($crate::packet::FromMediator::Point((
                     format!($plt_name),
                     $point.into_plot_point(),
                 ))) {
+                    Err(e) if sender.len() <= 1 =>
                     log::error!(
                         "Failed to send plot data to listener thread with \"{e}\". This should never happen."
-                    );
-                }
+                    ),
+                    _ => {},
+                };
             }
         }
     };
@@ -127,27 +128,27 @@ macro_rules! plot {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Point {
-    Scalar(f64),
-    Vec2([f64; 2]),
-    Vec3([f64; 3]),
+    Scalar((Instant, f64)),
+    Vec2((Instant, [f64; 2])),
+    Vec3((Instant, [f64; 3])),
 }
 
 // specialisation
 pub trait A: Into<f64> {
     fn into_plot_point(self) -> Point {
-        Point::Scalar(self.into())
+        Point::Scalar((Instant::now(), self.into()))
     }
 }
 impl<T: Into<f64>> A for T {}
 pub trait B: Into<[f64; 2]> {
     fn into_plot_point(self) -> Point {
-        Point::Vec2(self.into())
+        Point::Vec2((Instant::now(), self.into()))
     }
 }
 impl<T: Into<[f64; 2]>> B for T {}
 pub trait C: Into<[f64; 3]> {
     fn into_plot_point(self) -> Point {
-        Point::Vec3(self.into())
+        Point::Vec3((Instant::now(), self.into()))
     }
 }
 impl<T: Into<[f64; 3]>> C for T {}

@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Receiver, SendError, Sender};
+use crossbeam_channel::{Receiver, Sender, TrySendError};
 
 use crate::packet::{self, FromMediator, ToMediator};
 
@@ -9,7 +9,7 @@ pub enum Error {
     #[error("packet error:\n{0}")]
     Packet(#[from] packet::Error),
     #[error("send error:\n{0}")]
-    Send(#[from] SendError<FromMediator>),
+    Send(#[from] TrySendError<FromMediator>),
 }
 
 pub struct Mediator {
@@ -32,11 +32,11 @@ impl Mediator {
     }
     pub fn send_events(&mut self, events: Vec<FromMediator>) -> Result<(), Error> {
         for event in events {
-            self.send.send(event)?;
+            self.send.try_send(event)?;
         }
         Ok(())
     }
     pub fn send_event(&mut self, event: FromMediator) -> Result<(), Error> {
-        Ok(self.send.send(event)?)
+        Ok(self.send.try_send(event)?)
     }
 }
