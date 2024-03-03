@@ -9,23 +9,31 @@ pub static mut PLOTTER: Option<Sender<FromMediator>> = None;
 const BUFFER_SIZE: usize = 50;
 const BUFFER_TIMEOUT: Duration = Duration::from_millis(100);
 
+// plot name, subplot name
+// e.g. Names("encoder one", "target")
+pub(crate) type Names = (String, String);
+
 #[derive(Debug, Default)]
-pub(crate) struct PlotManager(HashMap<String, Plot>);
+pub(crate) struct PlotManager(HashMap<Names, SubPlot>);
 
 impl PlotManager {
-    pub(crate) fn add_point(&mut self, (name, point): (String, Point)) {
-        self.0
-            .entry(name.clone())
-            .and_modify(|plot| plot.add_point(point))
-            .or_insert(Plot::new(name, point));
+    pub(crate) fn add_point(&mut self, (names, point): (Names, Point)) {
+        match self.0.get_mut(&names) {
+            Some(plot) => {
+                plot.add_point(point);
+            }
+            None => {
+                self.0.insert(names.clone(), SubPlot::new(names, point));
+            }
+        }
     }
-    pub(crate) fn buffers_to_send(&mut self) -> Vec<(String, Buffer)> {
+    pub(crate) fn buffers_to_send(&mut self) -> Vec<(Names, Buffer)> {
         let mut out = Vec::new();
         for plot in self.0.values_mut() {
             if plot.point_buffer.len() >= BUFFER_SIZE
                 || (plot.last_update.elapsed() >= BUFFER_TIMEOUT && !plot.point_buffer.is_empty())
             {
-                out.push((plot.name.clone(), plot.point_buffer.take()));
+                out.push((plot.names.clone(), plot.point_buffer.take()));
                 plot.last_update = Instant::now();
             }
         }
@@ -34,17 +42,17 @@ impl PlotManager {
 }
 
 #[derive(Debug)]
-struct Plot {
+struct SubPlot {
     start: Instant,
-    name: String,
+    names: Names,
     point_buffer: Buffer,
     last_update: Instant,
 }
 
-impl Plot {
-    pub fn new(name: String, point: Point) -> Self {
+impl SubPlot {
+    pub fn new(names: Names, point: Point) -> Self {
         Self {
-            name,
+            names,
             start: Instant::now(),
             point_buffer: point.into(),
             last_update: Instant::now(),
@@ -55,7 +63,7 @@ impl Plot {
             (Buffer::Scalar(buf), Point::Scalar(p)) => buf.push((p.0.duration_since(self.start), p.1)),
             (Buffer::Vec2(buf), Point::Vec2(p)) =>buf.push((p.0.duration_since(self.start), p.1)),
             (Buffer::Vec3(buf), Point::Vec3(p)) => buf.push((p.0.duration_since(self.start), p.1)),
-            _ => log::warn!("plot {} received point {point:?} of wrong type. Is there more then one plot with the same name?", self.name),
+            _ => log::warn!("subplot {:?} received point {point:?} of wrong type. Is there more then one subplot with the same name?", self.names),
         }
     }
 }
@@ -106,13 +114,16 @@ impl From<Point> for Buffer {
 #[macro_export]
 macro_rules! plot {
     ($plt_name:expr, $point:expr) => {
+        plot!($plt_name, $plt_name, $point)
+    };
+    ($plt_name:expr, $subplt_name:expr, $point:expr) => {
         #[allow(unsafe_code)]
         unsafe {
             if let Some(sender) = &*std::ptr::addr_of!($crate::plot::PLOTTER) {
                 #[allow(unused_imports)]
                 use $crate::plot::{A, B, C};
                 match sender.try_send($crate::packet::FromMediator::Point((
-                    format!($plt_name),
+                    ($plt_name.into(), $subplt_name.into()),
                     $point.into_plot_point(),
                 ))) {
                     Err(e) if sender.len() <= 1 =>
@@ -123,6 +134,7 @@ macro_rules! plot {
                 };
             }
         }
+
     };
 }
 
@@ -166,6 +178,8 @@ mod tests {
                 [self.0[0] as f64, self.0[1] as f64, self.0[2] as f64]
             }
         }
-        plot!("", Test([3, 1, 2]));
+        let plt_name = "a";
+        plot!(plt_name, Test([3, 1, 2]));
+        plot!("plot", "some_subplot", Test([3, 1, 2]));
     }
 }

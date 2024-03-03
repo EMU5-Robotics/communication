@@ -61,7 +61,7 @@ pub enum ToClient {
     Log(SimpleLog) = 0,
     Pong = 1,
     Path(Vec<Action>) = 2,
-    PointBuffer((String, plot::Buffer)) = 3,
+    PointBuffer((plot::Names, plot::Buffer)) = 3,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -85,7 +85,7 @@ pub enum FromMediator {
     Path(Vec<Action>),
     Pong,
     PollEvents,
-    Point((String, plot::Point)),
+    Point((plot::Names, plot::Point)),
 }
 
 impl From<&Record<'_>> for FromMediator {
