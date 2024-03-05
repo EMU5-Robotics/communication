@@ -1,7 +1,7 @@
 use crate::{
     packet::{self, FromMediator, ToClient, ToMediator, ToRobot},
     plot::PlotManager,
-    Error,
+    Error, FIRST_ROBOT,
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::{
@@ -108,6 +108,14 @@ impl Listener {
             FromMediator::Path(p) => packet::send(stream, &ToClient::Path(p))?,
             FromMediator::PollEvents => self.poll_tcp_events(stream)?,
             FromMediator::Point(p) => self.plot_manager.add_point(p),
+            FromMediator::Odometry((pos, heading)) => packet::send(
+                stream,
+                &ToClient::Odometry((
+                    FIRST_ROBOT.load(std::sync::atomic::Ordering::Relaxed),
+                    pos,
+                    heading,
+                )),
+            )?,
         }
         Ok(())
     }

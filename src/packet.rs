@@ -62,6 +62,8 @@ pub enum ToClient {
     Pong = 1,
     Path(Vec<Action>) = 2,
     PointBuffer((plot::Names, plot::Buffer)) = 3,
+    // (first_robot, pos, heading)
+    Odometry((bool, [f64; 2], f64)) = 4,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -86,6 +88,7 @@ pub enum FromMediator {
     Pong,
     PollEvents,
     Point((plot::Names, plot::Point)),
+    Odometry(([f64; 2], f64)),
 }
 
 impl From<&Record<'_>> for FromMediator {

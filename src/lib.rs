@@ -2,6 +2,8 @@ use crossbeam_channel::{bounded, RecvError, SendError, Sender};
 use log::{Log, Metadata, Record};
 use packet::{FromMediator, ToMediator};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 pub mod client;
 pub mod listener;
 pub mod mediator;
@@ -14,6 +16,7 @@ pub use mediator::Mediator;
 pub use packet::{SimpleLog, ToClient};
 
 const MPSC_BUFFER_SIZE: usize = 10_000;
+pub static FIRST_ROBOT: AtomicBool = AtomicBool::new(true);
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
@@ -36,9 +39,11 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn init() -> Result<Mediator, log::SetLoggerError> {
+    pub fn init(is_first_robot: bool) -> Result<Mediator, log::SetLoggerError> {
         let (thread_tx, main_rx) = bounded(MPSC_BUFFER_SIZE);
         let (main_tx, thread_rx) = bounded(MPSC_BUFFER_SIZE);
+
+        FIRST_ROBOT.store(is_first_robot, Ordering::Relaxed);
 
         Listener::spawn(thread_tx, thread_rx);
 
@@ -78,6 +83,12 @@ impl Log for Logger {
     }
 }
 
+pub fn odom(pos: impl Into<[f64; 2]>, heading: impl Into<f64>) {
+    if let Some(sender) = unsafe { &*std::ptr::addr_of!(plot::PLOTTER) } {
+        let _ = sender.try_send(packet::FromMediator::Odometry((pos.into(), heading.into())));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::client::Client;
@@ -87,7 +98,7 @@ mod tests {
 
     #[test]
     fn logging() {
-        let mut mediator = Logger::init().unwrap();
+        let mut mediator = Logger::init(true).unwrap();
 
         // START LOGGING TESTS
         let client = std::thread::spawn(|| {
@@ -140,7 +151,7 @@ mod tests {
         client.join().unwrap();
         // END LOGGING TESTS
 
-        // START PLOTTING TESTS
+        // START PLOTTING + ODOM TESTS
         let client = std::thread::spawn(|| {
             // create client after logs have been sent
             let mut client = Client::new("127.0.0.1:8733").unwrap();
@@ -150,7 +161,7 @@ mod tests {
 
             let pkts = client.receive_data().unwrap();
 
-            assert_eq!(pkts.len(), 5); // including disconnect and connect log
+            assert_eq!(pkts.len(), 6); // including disconnect and connect log
         });
 
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -166,6 +177,7 @@ mod tests {
         plot!("test_plot", -2.1);
         plot!("test_plot", 3);
         plot!("test_plot_3", [3., 1.]);
+        odom([3.2f64, 1.4], std::f32::consts::FRAC_PI_2);
 
         for _ in 0..100 {
             if mediator.poll_events().is_err() {
