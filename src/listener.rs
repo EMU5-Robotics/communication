@@ -136,6 +136,7 @@ impl Listener {
                 ToRobot::RequestLogs => {
                     self.send_logs(stream)?;
                 }
+                ToRobot::Pid(p) => self.tx.send(ToMediator::Pid(p))?,
             }
             Ok(())
         };

@@ -72,12 +72,14 @@ pub enum ToRobot {
     RequestLogs = 0,
     Ping = 1,
     Path(Vec<Action>) = 2,
+    Pid((f64, f64, f64)) = 3,
 }
 
 // THREAD PACKETS
 #[derive(Debug)]
 pub enum ToMediator {
     Path(Vec<Action>),
+    Pid((f64, f64, f64)),
     Ping,
 }
 
