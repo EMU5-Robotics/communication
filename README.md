@@ -9,3 +9,5 @@ This crate serves to facilitate communicate between the code running on the copr
 
 
 # Crate structure
+
+<sup>hatsune miku was here</sup>
