@@ -1,5 +1,5 @@
 use async_channel::{bounded, Sender};
-mod listener;
+pub mod listener;
 mod mediator;
 mod packets;
 mod processing;

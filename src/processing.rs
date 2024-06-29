@@ -52,12 +52,11 @@ pub(crate) fn spawn_processing_thread(
             recv_client_handler,
         ));
 
-        futures_lite::future::block_on(async move {
-            incoming_main.await?;
-            tcp.await?;
-            incoming_client.await?;
-            Ok(())
-        })
+        futures_lite::future::block_on(futures_lite::future::try_zip(
+            futures_lite::future::try_zip(incoming_main, tcp),
+            incoming_client,
+        ))?;
+        Ok(())
     });
 }
 
@@ -78,7 +77,7 @@ async fn handle_incoming_main(
 }
 
 async fn handle_incoming_client(
-    send_main: Sender<ToMain>,
+    _send_main: Sender<ToMain>,
     send_tcp_handler: Sender<ToClient>,
     recv_client: Receiver<ToRobot>,
 ) -> Result<(), Error> {
@@ -107,22 +106,27 @@ async fn handle_tcp(
     let listener = TcpListener::bind("0.0.0.0:8733").await?;
     let mut incoming = listener.incoming();
 
-    // handle concurrent streams
-    while let Some(stream) = incoming.next().await {
-        let Ok(mut write) = stream else { continue };
-        let read = write.clone();
+    loop {
+        // handle concurrent streams
+        while let Some(stream) = incoming.next().await {
+            let Ok(mut write) = stream else { continue };
+            let read = write.clone();
 
-        let _ = tcp_handshake(&mut write, &robot_info).await;
+            let _ = tcp_handshake(&mut write, &robot_info).await;
 
-        // detach read write since we don't care about
-        // handing errors since they aren't really recoverable
-        // and if connection closes the listener should open it again
-        ex.spawn(write_tcp_packets(write, recv_processing.clone()))
-            .detach();
-        ex.spawn(read_tcp_packets(read, send_processing.clone()))
-            .detach();
+            // detach read write since we don't care about
+            // handing errors since they aren't really recoverable
+            // and if connection closes the listener should open it again
+            if let Err(e) = futures_lite::future::try_zip(
+                ex.spawn(write_tcp_packets(write, recv_processing.clone())),
+                ex.spawn(read_tcp_packets(read, send_processing.clone())),
+            )
+            .await
+            {
+                log::warn!("handle_tcp got: {e}");
+            }
+        }
     }
-    Ok(())
 }
 
 async fn read_tcp_packets(mut stream: TcpStream, send_proc: Sender<ToRobot>) -> Result<(), Error> {
@@ -166,32 +170,28 @@ async fn write_tcp_packets(
     }
 }
 async fn tcp_handshake(stream: &mut TcpStream, robot_info: &RobotInfo) -> Result<(), Error> {
-    loop {
-        // todo: map error properly here
-        let data = rmp_serde::encode::to_vec(&ToClient::RobotInfo(robot_info.clone())).unwrap();
+    // todo: map error properly here
+    let data = rmp_serde::encode::to_vec(&ToClient::RobotInfo(robot_info.clone())).unwrap();
 
-        let len = u32::try_from(data.len()).map_err(|_| {
-            Error::Other(String::from("Packet length greater then 2^32-1 bytes?!?"))
-        })?;
+    let len = u32::try_from(data.len())
+        .map_err(|_| Error::Other(String::from("Packet length greater then 2^32-1 bytes?!?")))?;
 
-        stream.write_all(&len.to_be_bytes()).await?;
-        stream.write_all(&data).await?;
+    stream.write_all(&len.to_be_bytes()).await?;
+    stream.write_all(&data).await?;
 
-        let mut len_buf = [0u8; 4];
-        stream.read_exact(&mut len_buf).await?;
-        let len = u32::from_be_bytes(len_buf);
-        let len = usize::try_from(len)
-            .map_err(|_| Error::Other(String::from("Packet larger then pointer size?!?")))?;
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).await?;
+    let len = u32::from_be_bytes(len_buf);
+    let len = usize::try_from(len)
+        .map_err(|_| Error::Other(String::from("Packet larger then pointer size?!?")))?;
 
-        let mut data = vec![0u8; len];
-        stream.read_exact(&mut data).await?;
+    let mut data = vec![0u8; len];
+    stream.read_exact(&mut data).await?;
 
-        let pkt = rmp_serde::decode::from_slice(&data);
+    let pkt = rmp_serde::decode::from_slice(&data);
 
-        if let Ok(ToRobot::ClientInfo(client_info)) = pkt {
-            log::info!("Connection established with client - {}", client_info.name);
-            break;
-        }
+    if let Ok(ToRobot::ClientInfo(client_info)) = pkt {
+        log::info!("Connection established with client - {}", client_info.name);
     }
     Ok(())
 }
