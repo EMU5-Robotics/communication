@@ -35,16 +35,22 @@ impl ClientListener {
 
         let _ = std::thread::spawn(move || {
             let ex = LocalExecutor::new();
-            futures_lite::future::block_on(async {
+            futures_lite::future::block_on(ex.run(async {
+                log::info!("ClinetListener initialised");
                 loop {
                     let Ok(mut write) = TcpStream::connect(addr).await else {
                         continue;
                     };
+
+                    log::info!("ClinetListener connected to {addr}");
+
                     let read = write.clone();
 
                     if let Err(e) = tcp_handshake(&mut write, &client_info).await {
                         log::warn!("tcp_handshake got: {e}");
                     }
+
+                    log::info!("ClinetListener handshake finished");
 
                     if let Err(e) = futures_lite::future::try_zip(
                         ex.spawn(write_tcp_packets(write, thread_rx.clone())),
@@ -55,7 +61,7 @@ impl ClientListener {
                         log::warn!("handle_tcp got: {e}");
                     }
                 }
-            });
+            }));
         });
 
         Self {

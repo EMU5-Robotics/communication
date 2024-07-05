@@ -39,9 +39,21 @@ pub struct ClientInfo {
     pub name: String,
 }
 
+impl ClientInfo {
+    pub fn new<T: Into<String>>(name: T) -> Self {
+        Self { name: name.into() }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RobotInfo {
     pub name: String,
+}
+
+impl RobotInfo {
+    pub fn new<T: Into<String>>(name: T) -> Self {
+        Self { name: name.into() }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]

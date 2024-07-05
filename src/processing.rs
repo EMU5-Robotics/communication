@@ -52,10 +52,10 @@ pub(crate) fn spawn_processing_thread(
             recv_client_handler,
         ));
 
-        futures_lite::future::block_on(futures_lite::future::try_zip(
+        futures_lite::future::block_on(ex.run(futures_lite::future::try_zip(
             futures_lite::future::try_zip(incoming_main, tcp),
             incoming_client,
-        ))?;
+        )))?;
         Ok(())
     });
 }
@@ -103,8 +103,10 @@ async fn handle_tcp(
     recv_processing: Receiver<ToClient>,
     ex: Rc<LocalExecutor<'_>>,
 ) -> Result<(), Error> {
+    log::info!("trying to bind on 0.0.0.0:8733");
     let listener = TcpListener::bind("0.0.0.0:8733").await?;
     let mut incoming = listener.incoming();
+    log::info!("listening on 0.0.0.0:8733");
 
     loop {
         // handle concurrent streams
