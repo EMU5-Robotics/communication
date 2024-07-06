@@ -5,7 +5,12 @@ pub mod packets;
 mod processing;
 use crate::mediator::Mediator;
 
-use crate::packets::{FromMain, RobotInfo, ToMain};
+use crate::packets::{FromMain, ToMain};
+
+pub use crate::{
+    listener::ClientListener,
+    packets::{ClientInfo, RobotInfo, ToClient, ToRobot},
+};
 
 pub struct Logger {
     sender: Sender<FromMain>,
