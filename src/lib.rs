@@ -42,15 +42,16 @@ impl Logger {
         let (thread_tx, main_rx) = bounded::<ToMain>(100);
         let (main_tx, thread_rx) = bounded::<FromMain>(100);
 
+        // set default log level if environment variable isn't set
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "debug");
+        }
+        let local_logger = env_logger::Logger::from_default_env();
+        log::set_max_level(local_logger.filter());
         if enable_logging {
-            // set default log level if environment variable isn't set
-            if std::env::var("RUST_LOG").is_err() {
-                std::env::set_var("RUST_LOG", "debug");
-            }
-
             log::set_boxed_logger(Box::new(Logger {
                 sender: main_tx.clone(),
-                local_logger: env_logger::Logger::from_default_env(),
+                local_logger,
             }))?;
         }
 
