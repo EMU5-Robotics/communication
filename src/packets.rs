@@ -6,7 +6,7 @@ use std::time::SystemTime;
 // and https://docs.rs/log/latest/src/log/lib.rs.html#429-453
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 #[serde(remote = "log::Level")]
-enum Level {
+pub enum Level {
     Error = 1,
     Warn,
     Info,
@@ -16,11 +16,11 @@ enum Level {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Log {
-    source: String,
+    pub source: String,
     #[serde(with = "Level")]
-    level: log::Level,
-    msg: String,
-    timestamp: SystemTime,
+    pub level: log::Level,
+    pub msg: String,
+    pub timestamp: SystemTime,
 }
 
 impl From<&Record<'_>> for Log {
