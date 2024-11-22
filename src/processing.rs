@@ -71,13 +71,24 @@ async fn handle_incoming_main(
                 .send(ToClient::Log(log))
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
-            _ => unimplemented!(),
+            FromMain::Path => to_tcp
+                .send(ToClient::Path)
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?,
+            FromMain::Odometry => to_tcp
+                .send(ToClient::Odometry)
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?,
+            FromMain::Point => to_tcp
+                .send(ToClient::PointBuffer)
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?,
         }
     }
 }
 
 async fn handle_incoming_client(
-    _send_main: Sender<ToMain>,
+    send_main: Sender<ToMain>,
     send_tcp_handler: Sender<ToClient>,
     recv_client: Receiver<ToRobot>,
 ) -> Result<(), Error> {
@@ -88,7 +99,15 @@ async fn handle_incoming_client(
                 .send(ToClient::Pong)
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
-            _ => unimplemented!(),
+            ToRobot::Pid => send_main
+                .send(ToMain::Pid)
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?,
+            ToRobot::Path => send_main
+                .send(ToMain::Path)
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?,
+            ToRobot::ClientInfo(c) => log::info!("Client connected: {c:?}"),
         }
     }
 }

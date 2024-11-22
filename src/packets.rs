@@ -80,15 +80,12 @@ pub enum ToRobot {
 pub enum ToMain {
     Path,
     Pid,
-    Ping,
 }
 
 #[derive(Debug)]
 pub enum FromMain {
     Log(Log),
     Path,
-    Pong,
-    PollEvents,
     Point,
     Odometry,
 }
