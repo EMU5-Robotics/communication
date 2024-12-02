@@ -42,6 +42,7 @@ pub(crate) fn spawn_processing_thread(
             ex.spawn::<Result<(), Error>>(check_plot(recv_plot, send_tcp_handler.clone()));
 
         let incoming_main = ex.spawn::<Result<(), Error>>(handle_incoming_main(
+            robot_info.clone(),
             recv_main_handler,
             send_tcp_handler.clone(),
             send_plot,
@@ -90,6 +91,7 @@ async fn check_plot(
 }
 
 async fn handle_incoming_main(
+    robot_info: RobotInfo,
     recv_main: Receiver<FromMain>,
     to_tcp: Sender<ToClient>,
     to_plot: Sender<(String, String, Point)>,
@@ -105,8 +107,8 @@ async fn handle_incoming_main(
                 .send(ToClient::Path)
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
-            FromMain::Odometry => to_tcp
-                .send(ToClient::Odometry)
+            FromMain::Odometry(pos, rot) => to_tcp
+                .send(ToClient::Odometry(robot_info.name.clone(), pos, rot))
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
             FromMain::Point(plot, subplt, point) => {

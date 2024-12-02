@@ -64,7 +64,7 @@ pub enum ToClient {
     Pong = 1,
     Path = 2,
     PointBuffer(String, String, plot::Buffer) = 3,
-    Odometry = 4,
+    Odometry(String, [f64; 2], f64) = 4,
     RobotInfo(RobotInfo) = 5,
 }
 
@@ -89,7 +89,7 @@ pub enum FromMain {
     Path,
     // plot name, subplot name, point
     Point(String, String, crate::plot::Point),
-    Odometry,
+    Odometry([f64; 2], f64),
 }
 
 impl From<&Record<'_>> for FromMain {
