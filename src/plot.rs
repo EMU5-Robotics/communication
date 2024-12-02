@@ -125,7 +125,7 @@ macro_rules! plot {
             if let Some(sender) = &*std::ptr::addr_of!($crate::plot::PLOTTER) {
                 #[allow(unused_imports)]
                 use $crate::plot::{A, B, C};
-                match sender.try_send(crate::packets::FromMain::Point(
+                match sender.try_send($crate::packets::FromMain::Point(
                     $plt_name.into(), $subplt_name.into(),
                     $point.into_plot_point(),
                 )) {
