@@ -1,3 +1,4 @@
+use crate::plot;
 use log::Record;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
@@ -62,7 +63,7 @@ pub enum ToClient {
     Log(Log) = 0,
     Pong = 1,
     Path = 2,
-    PointBuffer = 3,
+    PointBuffer(String, String, plot::Buffer) = 3,
     Odometry = 4,
     RobotInfo(RobotInfo) = 5,
 }
@@ -86,7 +87,8 @@ pub enum ToMain {
 pub enum FromMain {
     Log(Log),
     Path,
-    Point,
+    // plot name, subplot name, point
+    Point(String, String, crate::plot::Point),
     Odometry,
 }
 

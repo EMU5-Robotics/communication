@@ -2,6 +2,7 @@ use async_channel::{bounded, Sender};
 pub mod listener;
 mod mediator;
 pub mod packets;
+pub mod plot;
 mod processing;
 use crate::mediator::Mediator;
 
@@ -10,6 +11,7 @@ use crate::packets::{FromMain, ToMain};
 pub use crate::{
     listener::ClientListener,
     packets::{ClientInfo, RobotInfo, ToClient, ToRobot},
+    plot::*,
 };
 
 pub struct Logger {
@@ -53,6 +55,10 @@ impl Logger {
                 sender: main_tx.clone(),
                 local_logger,
             }))?;
+
+            unsafe {
+                crate::plot::PLOTTER = Some(main_tx.clone());
+            };
         }
 
         let mediator = Mediator {

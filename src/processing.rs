@@ -1,3 +1,4 @@
+use crate::{plot, Point};
 use async_channel::{bounded, Receiver, Sender};
 use async_executor::LocalExecutor;
 use async_net::{TcpListener, TcpStream};
@@ -29,6 +30,7 @@ pub(crate) fn spawn_processing_thread(
 ) {
     let _ = std::thread::spawn(|| -> Result<(), Error> {
         let ex = Rc::new(LocalExecutor::new());
+        let (send_plot, recv_plot) = bounded::<(String, String, Point)>(100);
 
         // channel for sending between (incoming) TCP handler and main client packet processing loop
         // small bounded channel, if the limit is reached something went seriously wrong
@@ -36,9 +38,13 @@ pub(crate) fn spawn_processing_thread(
         // channel for sending between (outgoing) TCP handler and main client packet processing loop
         let (send_client_handler, recv_client_handler) = bounded::<ToRobot>(100);
 
+        let plot_handler =
+            ex.spawn::<Result<(), Error>>(check_plot(recv_plot, send_tcp_handler.clone()));
+
         let incoming_main = ex.spawn::<Result<(), Error>>(handle_incoming_main(
             recv_main_handler,
             send_tcp_handler.clone(),
+            send_plot,
         ));
         let tcp = ex.spawn::<Result<(), Error>>(handle_tcp(
             robot_info,
@@ -53,16 +59,40 @@ pub(crate) fn spawn_processing_thread(
         ));
 
         futures_lite::future::block_on(ex.run(futures_lite::future::try_zip(
-            futures_lite::future::try_zip(incoming_main, tcp),
-            incoming_client,
+            futures_lite::future::try_zip(
+                futures_lite::future::try_zip(incoming_main, tcp),
+                incoming_client,
+            ),
+            plot_handler,
         )))?;
         Ok(())
     });
 }
 
+async fn check_plot(
+    recv: Receiver<(String, String, Point)>,
+    send: Sender<ToClient>,
+) -> Result<(), Error> {
+    let mut plot_manager = plot::PlotManager::default();
+    use smol_timeout::TimeoutExt;
+    loop {
+        let update = recv.recv().timeout(std::time::Duration::from_millis(300));
+        if let Some(Ok((plot_name, subplt_name, point))) = update.await {
+            plot_manager.add_point(plot_name, subplt_name, point)
+        }
+
+        for buf in plot_manager.buffers_to_send() {
+            send.send(ToClient::PointBuffer(buf.0, buf.1, buf.2))
+                .await
+                .map_err(|e| async_channel::SendError(e.to_string()))?;
+        }
+    }
+}
+
 async fn handle_incoming_main(
     recv_main: Receiver<FromMain>,
     to_tcp: Sender<ToClient>,
+    to_plot: Sender<(String, String, Point)>,
 ) -> Result<(), Error> {
     loop {
         let pkt = recv_main.recv().await?;
@@ -79,10 +109,12 @@ async fn handle_incoming_main(
                 .send(ToClient::Odometry)
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
-            FromMain::Point => to_tcp
-                .send(ToClient::PointBuffer)
-                .await
-                .map_err(|e| async_channel::SendError(e.to_string()))?,
+            FromMain::Point(plot, subplt, point) => {
+                to_plot
+                    .send((plot, subplt, point))
+                    .await
+                    .map_err(|e| async_channel::SendError(e.to_string()))?;
+            }
         }
     }
 }
