@@ -49,11 +49,17 @@ impl ClientInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RobotInfo {
     pub name: String,
+    pub width: f64,
+    pub height: f64,
 }
 
 impl RobotInfo {
-    pub fn new<T: Into<String>>(name: T) -> Self {
-        Self { name: name.into() }
+    pub fn new<T: Into<String>, F: Into<f64>>(name: T, width: F, height: F) -> Self {
+        Self {
+            name: name.into(),
+            width: width.into(),
+            height: height.into(),
+        }
     }
 }
 
@@ -64,7 +70,7 @@ pub enum ToClient {
     Pong = 1,
     Path = 2,
     PointBuffer(String, String, plot::Buffer) = 3,
-    Odometry(String, [f64; 2], f64) = 4,
+    Odometry(String, [f64; 2], [f64; 2], f64) = 4,
     RobotInfo(RobotInfo) = 5,
 }
 

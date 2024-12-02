@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn establish_connection() {
         init();
-        let mut mediator = Logger::try_init(RobotInfo::new("test1"), false).unwrap();
+        let mut mediator = Logger::try_init(RobotInfo::new("test1", 0.2, 0.3), false).unwrap();
 
         let a = std::thread::spawn(|| {
             let client = ClientListener::new(

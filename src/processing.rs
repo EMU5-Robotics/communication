@@ -108,7 +108,12 @@ async fn handle_incoming_main(
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
             FromMain::Odometry(pos, rot) => to_tcp
-                .send(ToClient::Odometry(robot_info.name.clone(), pos, rot))
+                .send(ToClient::Odometry(
+                    robot_info.name.clone(),
+                    [robot_info.width, robot_info.height],
+                    pos,
+                    rot,
+                ))
                 .await
                 .map_err(|e| async_channel::SendError(e.to_string()))?,
             FromMain::Point(plot, subplt, point) => {
